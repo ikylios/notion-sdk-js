@@ -85,6 +85,8 @@ async function getIssuesFromNotionDatabase() {
 
   const issues = []
   for (const page of pages) {
+    console.log(page.properties["Issue Number"]
+)
     const issueNumberPropertyId = page.properties["Issue Number"].id
     const propertyResult = await notion.pages.properties.retrieve({
       page_id: page.id,
@@ -105,7 +107,7 @@ async function getIssuesFromNotionDatabase() {
  * https://docs.github.com/en/rest/guides/traversing-with-pagination
  * https://docs.github.com/en/rest/reference/issues
  *
- * @returns {Promise<Array<{ number: number, title: string, state: "open" | "closed", comment_count: number, url: string }>>}
+ * @returns {Promise<Array<{ number: number, title: string, state: "open" | "closed", comment_count: number, url: string, labels: string }>>}
  */
 async function getGitHubIssuesForRepository() {
   const issues = []
@@ -118,12 +120,14 @@ async function getGitHubIssuesForRepository() {
   for await (const { data } of iterator) {
     for (const issue of data) {
       if (!issue.pull_request) {
+//        console.log('labels: ', issue.labels_url)
         issues.push({
           number: issue.number,
           title: issue.title,
           state: issue.state,
           comment_count: issue.comments,
           url: issue.html_url,
+          labels: issue.labels_url
         })
       }
     }
@@ -134,10 +138,10 @@ async function getGitHubIssuesForRepository() {
 /**
  * Determines which issues already exist in the Notion database.
  *
- * @param {Array<{ number: number, title: string, state: "open" | "closed", comment_count: number, url: string }>} issues
+ * @param {Array<{ number: number, title: string, state: "open" | "closed", comment_count: number, url: string, labels: string }>} issues
  * @returns {{
- *   pagesToCreate: Array<{ number: number, title: string, state: "open" | "closed", comment_count: number, url: string }>;
- *   pagesToUpdate: Array<{ pageId: string, number: number, title: string, state: "open" | "closed", comment_count: number, url: string }>
+ *   pagesToCreate: Array<{ number: number, title: string, state: "open" | "closed", comment_count: number, url: string, labels: string };
+ *   pagesToUpdate: Array<{ pageId: string, number: number, title: string, state: "open" | "closed", comment_count: number, url: string, labels: string }>
  * }}
  */
 function getNotionOperations(issues) {
@@ -154,6 +158,7 @@ function getNotionOperations(issues) {
       pagesToCreate.push(issue)
     }
   }
+  console.log(pagesToCreate)
   return { pagesToCreate, pagesToUpdate }
 }
 
@@ -162,7 +167,7 @@ function getNotionOperations(issues) {
  *
  * https://developers.notion.com/reference/post-page
  *
- * @param {Array<{ number: number, title: string, state: "open" | "closed", comment_count: number, url: string }>} pagesToCreate
+ * @param {Array<{ number: number, title: string, state: "open" | "closed", comment_count: number, url: string, labels: string }>} pagesToCreate
  */
 async function createPages(pagesToCreate) {
   const pagesToCreateChunks = _.chunk(pagesToCreate, OPERATION_BATCH_SIZE)
@@ -184,7 +189,7 @@ async function createPages(pagesToCreate) {
  *
  * https://developers.notion.com/reference/patch-page
  *
- * @param {Array<{ pageId: string, number: number, title: string, state: "open" | "closed", comment_count: number, url: string }>} pagesToUpdate
+ * @param {Array<{ pageId: string, number: number, title: string, state: "open" | "closed", comment_count: number, url: string, labels: string }>} pagesToUpdate
  */
 async function updatePages(pagesToUpdate) {
   const pagesToUpdateChunks = _.chunk(pagesToUpdate, OPERATION_BATCH_SIZE)
@@ -208,10 +213,10 @@ async function updatePages(pagesToUpdate) {
 /**
  * Returns the GitHub issue to conform to this database's schema properties.
  *
- * @param {{ number: number, title: string, state: "open" | "closed", comment_count: number, url: string }} issue
+ * @param {{ number: number, title: string, state: "open" | "closed", comment_count: number, url: string, labels: string }} issue
  */
 function getPropertiesFromIssue(issue) {
-  const { title, number, state, comment_count, url } = issue
+  const { title, number, state, comment_count, url, labels } = issue
   return {
     Name: {
       title: [{ type: "text", text: { content: title } }],
@@ -228,5 +233,8 @@ function getPropertiesFromIssue(issue) {
     "Issue URL": {
       url,
     },
+    "Labels": {
+      text: 'aa',
+    }
   }
 }
